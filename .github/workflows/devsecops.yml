@@ -99,15 +99,10 @@ jobs:
         run: |
           docker build -t app-scan-target:${{ github.sha }} -f Dockerfile .
 
-      - name: Run Trivy Vulnerability Scanner on Image
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: 'app-scan-target:${{ github.sha }}'
-          format: 'table'
-          exit-code: '0'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+      - name: Install and Run Trivy Vulnerability Scanner
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 app-scan-target:${{ github.sha }}
 
   # ============================================================================
   # STAGE 5: Keyless AWS Auth, ECR Push & ECS Deployment
