@@ -3,7 +3,7 @@
 # ==========================================
 # STAGE 1: Dependency Builder
 # ==========================================
-FROM node:20-alpine AS builder
+FROM node:20-alpine3.21 AS builder
 
 WORKDIR /usr/src/app
 
@@ -17,7 +17,7 @@ RUN npm ci --only=production && \
 # ==========================================
 # STAGE 2: Hardened Runtime Environment
 # ==========================================
-FROM node:20-alpine AS runner
+FROM node:20-alpine3.21 AS runner
 
 # Set metadata labels for container traceability
 LABEL org.opencontainers.image.title="Cloud-Native DevSecOps App" \
