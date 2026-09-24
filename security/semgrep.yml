@@ -1,0 +1,36 @@
+rules:
+  - id: express-eval-injection
+    languages: [javascript, typescript]
+    message: "Critical: Detected use of eval() or Function() constructor which can lead to Remote Code Execution (RCE)."
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: Function(...)
+          - pattern: window.eval(...)
+
+  - id: hardcoded-jwt-secret
+    languages: [javascript, typescript]
+    message: "High: Hardcoded JWT secret or encryption key found in application code. Store secrets in AWS Secrets Manager or environment variables."
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: |
+              jwt.sign($PAYLOAD, "...", ...)
+          - pattern: |
+              jwt.verify($TOKEN, "...", ...)
+
+  - id: insecure-child-process-exec
+    languages: [javascript, typescript]
+    message: "High: Use of child_process.exec with untrusted input can lead to Command Injection. Prefer execFile or validate arguments."
+    severity: WARNING
+    patterns:
+      - pattern: child_process.exec(...)
+
+  - id: express-cors-wildcard
+    languages: [javascript, typescript]
+    message: "Medium: CORS policy with wildcard origin '*' enables any domain to interact with API."
+    severity: WARNING
+    patterns:
+      - pattern: |
+          cors({origin: "*", ...})

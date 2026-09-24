@@ -1,0 +1,17 @@
+# AWS Region
+aws_region = "us-east-1"
+
+# Project naming identifier
+project_name = "cloud-native-devsecops"
+
+# Target Environment
+environment = "prod"
+
+# Set this to YOUR GitHub repository: "owner/repo-name"
+# Example: "johndoe/cloud-native-devsecops-aws"
+github_repo = "YOUR_GITHUB_USERNAME/YOUR_REPO_NAME"
+
+# Minimal resource sizing for cost optimization
+fargate_cpu    = 256 # 0.25 vCPU
+fargate_memory = 512 # 512 MB
+app_count      = 1   # Single replica for testing

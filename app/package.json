@@ -1,0 +1,27 @@
+{
+  "name": "cloud-native-devsecops-app",
+  "version": "1.0.0",
+  "description": "Production-ready demo application for AWS DevSecOps Pipeline",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "jest --detectOpenHandles --forceExit"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  },
+  "keywords": [
+    "aws",
+    "devsecops",
+    "docker",
+    "ecs",
+    "fargate",
+    "express"
+  ],
+  "author": "DevSecOps Team",
+  "license": "MIT"
+}

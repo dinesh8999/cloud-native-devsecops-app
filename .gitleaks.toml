@@ -1,0 +1,16 @@
+title = "Custom Gitleaks Configuration for AWS DevSecOps Pipeline"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for harmless placeholders and example tokens"
+paths = [
+  '''app/test/.*''',
+  '''terraform/terraform\.tfvars\.example''',
+  '''docs/.*'''
+]
+regexes = [
+  '''(?i)example[_-]?key''',
+  '''(?i)dummy[_-]?secret'''
+]

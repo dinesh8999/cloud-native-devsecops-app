@@ -1,0 +1,21 @@
+# Trivy vulnerability scanner configuration
+# Used in CI/CD pipeline to block builds containing unacceptable CVEs
+
+# Fail the pipeline on CRITICAL or HIGH vulnerabilities
+severity:
+  - CRITICAL
+  - HIGH
+
+# Exit code when vulnerabilities matching the policy are found
+exit-code: 1
+
+# Ignore unpatched vulnerabilities where upstream fix does not yet exist
+ignore-unfixed: true
+
+# Vulnerability types to scan
+vuln-type:
+  - os
+  - library
+
+# Format
+format: table

@@ -1,0 +1,165 @@
+name: Cloud-Native DevSecOps CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write   # Required for requesting AWS credentials via OIDC
+  contents: read    # Required for actions/checkout
+  security-events: write # Required for uploading SARIF reports if desired
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: cloud-native-devsecops-app
+  ECS_CLUSTER: cloud-native-devsecops-cluster
+  ECS_SERVICE: cloud-native-devsecops-service
+  ECS_TASK_DEFINITION: cloud-native-devsecops-task
+  CONTAINER_NAME: cloud-native-devsecops-container
+
+jobs:
+  # ============================================================================
+  # STAGE 1: Unit & Integration Testing
+  # ============================================================================
+  unit-tests:
+    name: 1. Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'app/package-lock.json'
+
+      - name: Install Application Dependencies
+        run: |
+          cd app
+          npm ci
+
+      - name: Execute Automated Unit & Endpoint Tests
+        run: |
+          cd app
+          npm test
+
+  # ============================================================================
+  # STAGE 2: Secret Scanning Gate (Gitleaks)
+  # ============================================================================
+  secret-scan:
+    name: 2. Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for secret scan
+
+      - name: Run Gitleaks Secret Detector
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  # ============================================================================
+  # STAGE 3: Static Application Security Testing - SAST (Semgrep)
+  # ============================================================================
+  sast-scan:
+    name: 3. SAST Scan (Semgrep)
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep Security Rules
+        run: |
+          python3 -m pip install semgrep
+          semgrep scan --config security/semgrep.yml --error --verbose app/
+
+  # ============================================================================
+  # STAGE 4: Container Build & Vulnerability Scan (Trivy)
+  # ============================================================================
+  container-security:
+    name: 4. Container Build & CVE Scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: [unit-tests, secret-scan, sast-scan]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Local Container Image
+        run: |
+          docker build -t app-scan-target:${{ github.sha }} -f Dockerfile .
+
+      - name: Run Trivy Vulnerability Scanner on Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'app-scan-target:${{ github.sha }}'
+          format: 'table'
+          exit-code: '1' # Fails build if CRITICAL or HIGH CVEs are present
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+  # ============================================================================
+  # STAGE 5: Keyless AWS Auth, ECR Push & ECS Deployment
+  # ============================================================================
+  deploy-to-aws:
+    name: 5. Deploy to AWS ECS (Fargate)
+    runs-on: ubuntu-latest
+    needs: [container-security]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC (No Static Keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push Immutable Image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Tag with commit SHA (Immutable) and latest
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -f Dockerfile .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Download Active ECS Task Definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.ECS_TASK_DEFINITION }} \
+            --query taskDefinition > task-definition.json
+
+      - name: Render New Task Definition with New ECR Image Tag
+        id: render-web-container
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+
+      - name: Deploy Updated Task Definition to Amazon ECS Service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-web-container.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
