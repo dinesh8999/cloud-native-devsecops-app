@@ -89,8 +89,12 @@ resource "aws_iam_openid_connect_provider" "github" {
   count = 1 # Set to 0 if account already has GitHub OIDC provider configured
 
   url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1", "1c5824a85a33dd1075e763a8a4fdd3a65d8b368f"]
+  client_id_list  = ["sts.amazonaws.com", "https://github.com/dinesh8999"]
+  thumbprint_list = [
+    "6938fd4d98bab03faadb97b34396831e3780aea1",
+    "1c5824a85a33dd1075e763a8a4fdd3a65d8b368f",
+    "a031c46782e6e6c662c2c87c76da9aa62ccabd8e"
+  ]
 
   tags = {
     Name = "GitHub-OIDC-Provider"
@@ -111,8 +115,7 @@ resource "aws_iam_role" "github_actions_oidc" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringLike = {
-            "token.actions.githubusercontent.com:sub" : "repo:${var.github_repo}:*",
-            "token.actions.githubusercontent.com:aud" : "sts.amazonaws.com"
+            "token.actions.githubusercontent.com:sub" : "repo:${var.github_repo}:*"
           }
         }
       }

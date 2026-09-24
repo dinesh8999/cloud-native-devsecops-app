@@ -110,6 +110,9 @@ jobs:
   deploy-to-aws:
     name: 5. Deploy to AWS ECS (Fargate)
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     needs: [container-security]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
@@ -119,7 +122,7 @@ jobs:
       - name: Configure AWS Credentials via OIDC (No Static Keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::996702757999:role/cloud-native-devsecops-github-actions-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
